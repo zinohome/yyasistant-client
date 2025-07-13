@@ -7,30 +7,35 @@
 @desc: 
 """
 import os
-
-import requests
 from config import config_from_dotenv
-
 from utils.logger import logger
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 cfg = config_from_dotenv(os.path.join(BASE_DIR, '.env'), read_from_file=True)
 
+import httpx
+import asyncio
+
 class YYAssistantAPIClient:
     def __init__(self, base_url):
-        self.base_url = cfg.SERVER_BASE_URL
+        self.base_url = base_url
+        self.client = httpx.AsyncClient()
 
-    def get_asr_engine_list(self):
-        """
-        获取 ASR 支持引擎列表
-        """
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.client.aclose()
+
+    async def close(self):
+        """手动关闭客户端连接"""
+        await self.client.aclose()
+
+    async def get_asr_engine_list(self):
         url = f"{self.base_url}/yyh/asr/v0/engine"
-        response = requests.get(url)
+        response = await self.client.get(url)
         return response.json()
 
-    def asr_inference_wav(self, data, user_id="tester", request_id="", cookie="", **kwargs):
-        """
-        执行 ASR 引擎（wav 二进制）
-        """
+    async def asr_inference_wav(self, data, user_id="tester", request_id="", cookie="", **kwargs):
         url = f"{self.base_url}/yyh/asr/v0/engine"
         headers = {
             "User-Id": user_id,
@@ -41,30 +46,21 @@ class YYAssistantAPIClient:
             "data": data,
             **kwargs
         }
-        response = requests.post(url, headers=headers, json=payload)
+        response = await self.client.post(url, headers=headers, json=payload)
         return response.json()
 
-    def get_default_asr_engine(self):
-        """
-        获取默认 ASR 引擎
-        """
+    async def get_default_asr_engine(self):
         url = f"{self.base_url}/yyh/asr/v0/engine/default"
-        response = requests.get(url)
+        response = await self.client.get(url)
         return response.json()
 
-    def get_asr_engine_param(self, engine):
-        """
-        获取 ASR 引擎配置参数列表
-        """
+    async def get_asr_engine_param(self, engine):
         url = f"{self.base_url}/yyh/asr/v0/engine/{engine}"
-        response = requests.get(url)
+        response = await self.client.get(url)
         return response.json()
 
-    def asr_inference_mp3(self, file_path, engine, audio_type, config, sample_rate, sample_width, user_id="tester",
+    async def asr_inference_mp3(self, file_path, engine, audio_type, config, sample_rate, sample_width, user_id="tester",
                           request_id="", cookie=""):
-        """
-        执行 ASR 引擎（mp3 文件）
-        """
         url = f"{self.base_url}/yyh/asr/v0/engine/file"
         headers = {
             "User-Id": user_id,
@@ -82,21 +78,15 @@ class YYAssistantAPIClient:
                 "sampleRate": sample_rate,
                 "sampleWidth": sample_width
             }
-            response = requests.post(url, headers=headers, files=files, data=data)
+            response = await self.client.post(url, headers=headers, files=files, data=data)
         return response.json()
 
-    def get_tts_engine_list(self):
-        """
-        获取 TTS 支持引擎列表
-        """
+    async def get_tts_engine_list(self):
         url = f"{self.base_url}/yyh/tts/v0/engine"
-        response = requests.get(url)
+        response = await self.client.get(url)
         return response.json()
 
-    def tts_inference(self, data, user_id="tester", request_id="", cookie="", **kwargs):
-        """
-        执行 TTS 引擎
-        """
+    async def tts_inference(self, data, user_id="tester", request_id="", cookie="", **kwargs):
         url = f"{self.base_url}/yyh/tts/v0/engine"
         headers = {
             "User-Id": user_id,
@@ -107,45 +97,30 @@ class YYAssistantAPIClient:
             "data": data,
             **kwargs
         }
-        response = requests.post(url, headers=headers, json=payload)
+        response = await self.client.post(url, headers=headers, json=payload)
         return response.json()
 
-    def get_default_tts_engine(self):
-        """
-        获取默认 TTS 引擎
-        """
+    async def get_default_tts_engine(self):
         url = f"{self.base_url}/yyh/tts/v0/engine/default"
-        response = requests.get(url)
+        response = await self.client.get(url)
         return response.json()
 
-    def get_tts_engine_voice_list(self, engine):
-        """
-        获取 TTS 引擎配置参数列表
-        """
+    async def get_tts_engine_voice_list(self, engine):
         url = f"{self.base_url}/yyh/tts/v0/engine/{engine}/voice"
-        response = requests.get(url)
+        response = await self.client.get(url)
         return response.json()
 
-    def get_tts_engine_param(self, engine):
-        """
-        获取 TTS 引擎配置参数列表
-        """
+    async def get_tts_engine_param(self, engine):
         url = f"{self.base_url}/yyh/tts/v0/engine/{engine}"
-        response = requests.get(url)
+        response = await self.client.get(url)
         return response.json()
 
-    def get_llm_engine_list(self):
-        """
-        获取 LLM 支持引擎列表
-        """
+    async def get_llm_engine_list(self):
         url = f"{self.base_url}/yyh/llm/v0/engine"
-        response = requests.get(url)
+        response = await self.client.get(url)
         return response.json()
 
-    def llm_inference(self, data, user_id="tester", request_id="", cookie="", **kwargs):
-        """
-        执行 LLM 引擎
-        """
+    async def llm_inference(self, data, user_id="tester", request_id="", cookie="", **kwargs):
         url = f"{self.base_url}/yyh/llm/v0/engine"
         headers = {
             "User-Id": user_id,
@@ -156,37 +131,25 @@ class YYAssistantAPIClient:
             "data": data,
             **kwargs
         }
-        response = requests.post(url, headers=headers, json=payload)
+        response = await self.client.post(url, headers=headers, json=payload)
         return response.json()
 
-    def get_default_llm_engine(self):
-        """
-        获取默认 LLM 引擎
-        """
+    async def get_default_llm_engine(self):
         url = f"{self.base_url}/yyh/llm/v0/engine/default"
-        response = requests.get(url)
+        response = await self.client.get(url)
         return response.json()
 
-    def get_llm_engine_param(self, engine):
-        """
-        获取 LLM 引擎配置参数列表
-        """
+    async def get_llm_engine_param(self, engine):
         url = f"{self.base_url}/yyh/llm/v0/engine/{engine}"
-        response = requests.get(url)
+        response = await self.client.get(url)
         return response.json()
 
-    def get_agent_engine_list(self):
-        """
-        获取 Agent 支持引擎列表
-        """
+    async def get_agent_engine_list(self):
         url = f"{self.base_url}/yyh/agent/v0/engine"
-        response = requests.get(url)
+        response = await self.client.get(url)
         return response.json()
 
-    def agent_inference(self, data, user_id="tester", request_id="", cookie="", conversation_id="", **kwargs):
-        """
-        执行 Agent 引擎
-        """
+    async def agent_inference(self, data, user_id="tester", request_id="", cookie="", conversation_id="", **kwargs):
         url = f"{self.base_url}/yyh/agent/v0/engine"
         headers = {
             "User-Id": user_id,
@@ -198,29 +161,67 @@ class YYAssistantAPIClient:
             "conversation_id": conversation_id,
             **kwargs
         }
-        response = requests.post(url, headers=headers, json=payload)
-        return response.json()
+        '''
+        response = await self.client.post(url, headers=headers, json=payload)
+        logger.info(f"Agent Inference Response: {response}")
+        return response
+        '''
+        # 使用流式请求
+        async with self.client.stream("POST", url, headers=headers, json=payload) as response:
+            # 检查响应状态码
+            response.raise_for_status()
 
-    def get_default_agent_engine(self):
-        """
-        获取默认 Agent 引擎
-        """
+            # 初始化结果列表和当前消息
+            results = []
+            current_message = ""
+            current_event_type = None
+
+            # 异步迭代响应流的每个部分
+            async for chunk in response.aiter_text():
+                # 处理每一行数据
+                lines = chunk.strip().split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        # 空行忽略
+                        continue
+                    # 解析字段
+                    if line.startswith("event: "):
+                        # 新事件开始
+                        # 如果之前有累积的TEXT消息，先添加到结果
+                        if current_event_type == "TEXT" and current_message:
+                            results.append(current_message)
+                            current_message = ""
+                        current_event_type = line[7:].strip()
+                    elif line.startswith("data: ") and current_event_type is not None:
+                        data_part = line[6:].strip()
+                        # 只处理TEXT事件，忽略其他类型
+                        if current_event_type == "TEXT" and data_part:
+                            current_message += data_part
+
+            # 添加最后可能剩余的消息
+            if current_event_type == "TEXT" and current_message:
+                results.append(current_message)
+
+            return results
+
+    async def get_default_agent_engine(self):
         url = f"{self.base_url}/yyh/agent/v0/engine/default"
-        response = requests.get(url)
-        return response.json()
+        response = await self.client.get(url)
+        data = response.json()
 
-    def get_agent_engine_param(self, engine):
-        """
-        获取 Agent 引擎配置参数列表
-        """
+        # 检查响应中是否包含 ['data']['name']
+        if isinstance(data, dict) and 'data' in data and isinstance(data['data'], dict) and 'name' in data['data']:
+            return data['data']['name']
+        else:
+            return "Dify"
+
+    async def get_agent_engine_param(self, engine):
         url = f"{self.base_url}/yyh/agent/v0/engine/{engine}"
-        response = requests.get(url)
+        response = await self.client.get(url)
         return response.json()
 
-    def create_agent_conversation(self, engine, data, user_id="tester", request_id="", cookie=""):
-        """
-        创建 Agent 会话
-        """
+    async def create_agent_conversation(self, engine, data, user_id="tester", request_id="", cookie=""):
         url = f"{self.base_url}/yyh/agent/v0/engine/{engine}"
         headers = {
             "User-Id": user_id,
@@ -230,21 +231,47 @@ class YYAssistantAPIClient:
         payload = {
             "data": data
         }
-        response = requests.post(url, headers=headers, json=payload)
+        response = await self.client.post(url, headers=headers, json=payload)
+        resdata = response.json()
+
+        # 检查响应中是否包含 ['data']
+        if isinstance(resdata, dict) and 'data' in resdata:
+            return resdata['data']
+        else:
+            return "11111111111"
         return response.json()
 
 
 # 使用示例
 if __name__ == "__main__":
-    logger.debug(cfg.SERVER_BASE_URL)
-    client = YYAssistantAPIClient(cfg.SERVER_BASE_URL)
+    base_url = cfg.SERVER_BASE_URL  # 替换为实际的API基础URL
 
-    # 获取 ASR 引擎列表
-    #asr_engine_list = client.get_asr_engine_list()
-    logger.info("ASR Engine List:", client.get_asr_engine_list())
+    async def main():
+        async with YYAssistantAPIClient(base_url) as client:
+            '''
+            # 获取ASR引擎列表
+            asr_engine_list = await client.get_asr_engine_list()
+            logger.info(f"ASR Engine List: {asr_engine_list}")
+            # 执行ASR推理（wav二进制）
+            # 示例数据，根据实际情况替换
+            asr_data = "your-asr-data"
+            asr_result = await client.asr_inference_wav(asr_data)
+            logger.info(f"ASR Inference Result: {asr_result}")
+            '''
 
-    # 执行 ASR 推理（wav 二进制）
-    # 示例数据，根据实际情况替换
-    asr_data = "your-asr-data"
-    asr_result = client.asr_inference_wav(asr_data)
-    logger.info("ASR Inference Result:", asr_result)
+            # 获取 Agent 引擎列表
+            default_engine = await client.get_default_agent_engine()
+            logger.info(f"Agent Default Engine: {default_engine}")
+            # 创建会话
+            conversation_id = await client.create_agent_conversation(
+                engine=default_engine, data={"input": "你好"}
+            )
+            logger.info(f"Agent Conversation ID: {conversation_id}")
+            # 执行推理
+            result = await client.agent_inference(data="今天天气如何？",conversation_id=conversation_id)
+            print("Agent 回复:")
+            for text in result:
+                print(text)
+            print(result)
+
+    asyncio.run(main())
