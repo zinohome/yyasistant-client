@@ -7,7 +7,7 @@ services:
     ports:
       - "8000:8000/tcp"
     volumes:
-      - "/data/yyassistant-client/.env:/opt/yyassistant-client/.env"
+      - "/data/yyasistant-client/.env:/opt/yyasistant-client/.env"
     networks:
       - 1panel-network
   yyassistant-server:
@@ -18,7 +18,7 @@ services:
     #ports:
     #  - "8880:8880/tcp"
     volumes:
-      - "/data/yyassistant-server/configs:/opt/yyassistant-server/configs"
+      - "/data/yyasistant-server/configs:/opt/yyasistant-server/configs"
     networks:
       - 1panel-network
 networks:
