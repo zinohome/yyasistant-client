@@ -286,7 +286,7 @@ async def main(message: cl.Message):
             tts_bytes = await tts_text_to_speech(client, tts_engine, full_response)
             if tts_bytes:
                 audio_el = cl.Audio(content=tts_bytes, mime="audio/wav", auto_play=True)
-                await cl.Message(content=full_response, elements=[audio_el], author="健康助手").send()
+                await cl.Message(content='', elements=[audio_el], author="健康助手").send()
 
     except Exception as e:
         # 创建新消息显示错误，而不是更新原有消息
