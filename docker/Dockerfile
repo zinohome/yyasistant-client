@@ -11,7 +11,7 @@ ENV EXT_HOSTS=''
 RUN mkdir -p /data && chmod 755 /bd_build/install.sh && /bd_build/install.sh
 
 # Clean up APT when done.
-WORKDIR /opt/chainlitYY/
+WORKDIR /opt/yyasistant-client/
 
 # Use baseimage-docker's init system.
 EXPOSE 8000

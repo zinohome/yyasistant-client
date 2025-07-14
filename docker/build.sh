@@ -1,4 +1,4 @@
 #!/bin/bash
-IMGNAME=zinohome/chainlityy-lite
-IMGVERSION=v0.0.6
+IMGNAME=zinohome/yyassistant-client
+IMGVERSION=v0.0.1
 docker build --no-cache -t $IMGNAME:$IMGVERSION .
