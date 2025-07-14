@@ -70,19 +70,17 @@ async def chat_profile(current_user: cl.User):
         )
     ]
 
+@cl.on_settings_update
+async def settings_update(settings):
+    cl.user_session.set("chat_settings", settings)
 @cl.on_chat_start
-async def start():
+async def start_chat():
     settings = await cl.ChatSettings(
         [
             Switch(id="auto_play_audio", label="自动播放语音", default=True, description="开启后会自动播报助手的语音回复"),
         ]
     ).send()
     await settings_update(settings)
-@cl.on_settings_update
-async def settings_update(settings):
-    cl.user_session.set("chat_settings", settings)
-@cl.on_chat_start
-async def start_chat():
     # 初始化客户端和会话
     base_url = cfg.SERVER_BASE_URL
     client = YYAssistantAPIClient(base_url)  # 请替换为实际的API基础URL
