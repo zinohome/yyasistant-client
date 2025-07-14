@@ -233,44 +233,60 @@ class YYAssistantAPIClient:
             **kwargs
         }
 
-        # 创建独立的客户端会话，确保可以单独关闭
-        async with httpx.AsyncClient(timeout=httpx.Timeout(int(cfg.HTTPX_TIMEOUT))) as session:
-            async with session.stream("POST", url, headers=headers, json=payload) as response:
-                response.raise_for_status()
+        try:
+            # 创建独立的客户端会话，确保可以单独关闭
+            async with httpx.AsyncClient(timeout=httpx.Timeout(int(cfg.HTTPX_TIMEOUT))) as session:
+                async with session.stream("POST", url, headers=headers, json=payload) as response:
+                    response.raise_for_status()
 
-                try:
-                    async for chunk in response.aiter_text():
-                        lines = chunk.strip().split('\n')
-                        current_event = None
-                        current_content = ""
+                    try:
+                        async for chunk in response.aiter_text():
+                            lines = chunk.strip().split('\n')
+                            current_event = None
+                            current_content = ""
 
-                        for line in lines:
-                            line = line.strip()
-                            if not line:
-                                continue
+                            for line in lines:
+                                line = line.strip()
+                                if not line:
+                                    continue
 
-                            if line.startswith("event: "):
-                                if current_event == "TEXT" and current_content:
-                                    yield current_content
-                                    current_content = ""
-                                current_event = line[7:].strip()
-
-                                if current_event == "DONE":
-                                    if current_content:
+                                if line.startswith("event: "):
+                                    if current_event == "TEXT" and current_content:
                                         yield current_content
-                                    return
+                                        current_content = ""
+                                    current_event = line[7:].strip()
 
-                            elif line.startswith("data: ") and current_event == "TEXT":
-                                current_content += line[6:].replace("\\n", "\n").replace('\n', '  \n')  # 恢复换行符，不要去掉空格
+                                    if current_event == "DONE":
+                                        if current_content:
+                                            yield current_content
+                                        return
 
-                        # 发送当前块的累积内容
-                        if current_event == "TEXT" and current_content:
-                            yield current_content
+                                elif line.startswith("data: ") and current_event == "TEXT":
+                                    current_content += line[6:].replace("\\n", "\n").replace('\n', '  \n')  # 恢复换行符，不要去掉空格
 
-                finally:
-                    # 确保流被正确关闭
-                    if not response.is_closed:
-                        await response.aclose()
+                            # 发送当前块的累积内容
+                            if current_event == "TEXT" and current_content:
+                                yield current_content
+
+                    finally:
+                        # 确保流被正确关闭
+                        if not response.is_closed:
+                            await response.aclose()
+
+        except httpx.HTTPStatusError as http_err:
+            logger.error(f"HTTP返回失败 {http_err.response.status_code}: {http_err}")
+        except httpx.RequestError as req_err:
+            logger.error(f"请求连接异常: {req_err}")
+        except asyncio.CancelledError:
+            # 调用方中断时，优雅释放，不需要raise
+            logger.info("agent_inference_stream 被任务取消")
+            return
+        except GeneratorExit:
+            # 调用方强制终止生成器
+            logger.info("agent_inference_stream 被生成器终止，资源已清理")
+            return
+        except Exception as e:
+            logger.error(f"未知异常: {e}")
 
     async def get_default_agent_engine(self):
         url = f"{self.base_url}/yyh/agent/v0/engine/default"

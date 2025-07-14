@@ -13,6 +13,7 @@ import wave
 import numpy as np
 import audioop
 
+from chainlit.input_widget import Switch
 from config import config_from_dotenv
 from utils.logger import logger
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -69,7 +70,17 @@ async def chat_profile(current_user: cl.User):
         )
     ]
 
-
+@cl.on_chat_start
+async def start():
+    settings = await cl.ChatSettings(
+        [
+            Switch(id="auto_play_audio", label="自动播放语音", default=True, description="开启后会自动播报助手的语音回复"),
+        ]
+    ).send()
+    await settings_update(settings)
+@cl.on_settings_update
+async def settings_update(settings):
+    cl.user_session.set("chat_settings", settings)
 @cl.on_chat_start
 async def start_chat():
     # 初始化客户端和会话
@@ -258,9 +269,14 @@ async def main(message: cl.Message):
 
     # 提前判断消息是否来源于语音
     from_audio = False
-    # 新版Chainlit为message.metadata，旧版也可message.get("metadata")
-    if hasattr(message, "metadata"):
-        from_audio = (getattr(message, "metadata", {}) or {}).get("from_audio", False)
+    meta = getattr(message, "metadata", None)
+    if meta and isinstance(meta, dict):
+        from_audio = meta.get("from_audio", False)
+
+    # 读取 ChatSettings 设置
+    chat_settings = cl.user_session.get("chat_settings") or {}
+    auto_play_audio = chat_settings.get("auto_play_audio", True)  # 默认为True
+
     # 输出空消息用于流式token输出
     msg = cl.Message(content="", author="健康助手")
     await msg.send()
@@ -269,20 +285,20 @@ async def main(message: cl.Message):
     try:
         full_response = ""
         # 接收流式响应
-        async for chunk in client.agent_inference_stream(
+        # ------ 新增try锁定generator -------
+        stream_gen = client.agent_inference_stream(
             data=message.content,
             conversation_id=conversation_id,
-            user_id="chainlit-user"  # 可选，替换为实际用户ID
-        ):
+            user_id="chainlit-user"
+        )
+        async for chunk in stream_gen:
             full_response += chunk
             await msg.stream_token(chunk)
-
         msg.content = full_response
-        #logger.info(f"Agent 回复: {full_response}")
         await msg.update()
 
-        # agent最终回答用tts读出来
-        if from_audio and full_response.strip():
+        # 只在 from_audio 时边生成边TTS，同时分句更自然
+        if from_audio and auto_play_audio and full_response.strip():
             tts_bytes = await tts_text_to_speech(client, tts_engine, full_response)
             if tts_bytes:
                 audio_el = cl.Audio(content=tts_bytes, mime="audio/wav", auto_play=True)
