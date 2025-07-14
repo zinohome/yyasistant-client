@@ -18,7 +18,7 @@ import asyncio
 class YYAssistantAPIClient:
     def __init__(self, base_url):
         self.base_url = base_url
-        self.client = httpx.AsyncClient()
+        self.client = httpx.AsyncClient(timeout=httpx.Timeout(int(cfg.HTTPX_TIMEOUT)))
 
     async def __aenter__(self):
         return self
@@ -52,7 +52,13 @@ class YYAssistantAPIClient:
     async def get_default_asr_engine(self):
         url = f"{self.base_url}/yyh/asr/v0/engine/default"
         response = await self.client.get(url)
-        return response.json()
+        data = response.json()
+
+        # 检查响应中是否包含 ['data']['name']
+        if isinstance(data, dict) and 'data' in data and isinstance(data['data'], dict) and 'name' in data['data']:
+            return data['data']['name']
+        else:
+            return "Tencent-API"
 
     async def get_asr_engine_param(self, engine):
         url = f"{self.base_url}/yyh/asr/v0/engine/{engine}"
@@ -103,7 +109,13 @@ class YYAssistantAPIClient:
     async def get_default_tts_engine(self):
         url = f"{self.base_url}/yyh/tts/v0/engine/default"
         response = await self.client.get(url)
-        return response.json()
+        data = response.json()
+
+        # 检查响应中是否包含 ['data']['name']
+        if isinstance(data, dict) and 'data' in data and isinstance(data['data'], dict) and 'name' in data['data']:
+            return data['data']['name']
+        else:
+            return "Tencent-API"
 
     async def get_tts_engine_voice_list(self, engine):
         url = f"{self.base_url}/yyh/tts/v0/engine/{engine}/voice"
@@ -166,6 +178,8 @@ class YYAssistantAPIClient:
         logger.info(f"Agent Inference Response: {response}")
         return response
         '''
+
+
         # 使用流式请求
         async with self.client.stream("POST", url, headers=headers, json=payload) as response:
             # 检查响应状态码
@@ -205,6 +219,59 @@ class YYAssistantAPIClient:
 
             return results
 
+
+    async def agent_inference_stream(self, data, user_id="tester", request_id="", cookie="", conversation_id="", **kwargs):
+        url = f"{self.base_url}/yyh/agent/v0/engine"
+        headers = {
+            "User-Id": user_id,
+            "Request-Id": request_id,
+            "Cookie": cookie
+        }
+        payload = {
+            "data": data,
+            "conversation_id": conversation_id,
+            **kwargs
+        }
+
+        # 创建独立的客户端会话，确保可以单独关闭
+        async with httpx.AsyncClient(timeout=httpx.Timeout(int(cfg.HTTPX_TIMEOUT))) as session:
+            async with session.stream("POST", url, headers=headers, json=payload) as response:
+                response.raise_for_status()
+
+                try:
+                    async for chunk in response.aiter_text():
+                        lines = chunk.strip().split('\n')
+                        current_event = None
+                        current_content = ""
+
+                        for line in lines:
+                            line = line.strip()
+                            if not line:
+                                continue
+
+                            if line.startswith("event: "):
+                                if current_event == "TEXT" and current_content:
+                                    yield current_content
+                                    current_content = ""
+                                current_event = line[7:].strip()
+
+                                if current_event == "DONE":
+                                    if current_content:
+                                        yield current_content
+                                    return
+
+                            elif line.startswith("data: ") and current_event == "TEXT":
+                                current_content += line[6:].replace("\\n", "\n").replace('\n', '  \n')  # 恢复换行符，不要去掉空格
+
+                        # 发送当前块的累积内容
+                        if current_event == "TEXT" and current_content:
+                            yield current_content
+
+                finally:
+                    # 确保流被正确关闭
+                    if not response.is_closed:
+                        await response.aclose()
+
     async def get_default_agent_engine(self):
         url = f"{self.base_url}/yyh/agent/v0/engine/default"
         response = await self.client.get(url)
@@ -232,13 +299,6 @@ class YYAssistantAPIClient:
             "data": data
         }
         response = await self.client.post(url, headers=headers, json=payload)
-        resdata = response.json()
-
-        # 检查响应中是否包含 ['data']
-        if isinstance(resdata, dict) and 'data' in resdata:
-            return resdata['data']
-        else:
-            return "11111111111"
         return response.json()
 
 
@@ -246,9 +306,9 @@ class YYAssistantAPIClient:
 if __name__ == "__main__":
     base_url = cfg.SERVER_BASE_URL  # 替换为实际的API基础URL
 
+    '''
     async def main():
         async with YYAssistantAPIClient(base_url) as client:
-            '''
             # 获取ASR引擎列表
             asr_engine_list = await client.get_asr_engine_list()
             logger.info(f"ASR Engine List: {asr_engine_list}")
@@ -257,7 +317,6 @@ if __name__ == "__main__":
             asr_data = "your-asr-data"
             asr_result = await client.asr_inference_wav(asr_data)
             logger.info(f"ASR Inference Result: {asr_result}")
-            '''
 
             # 获取 Agent 引擎列表
             default_engine = await client.get_default_agent_engine()
@@ -268,10 +327,9 @@ if __name__ == "__main__":
             )
             logger.info(f"Agent Conversation ID: {conversation_id}")
             # 执行推理
-            result = await client.agent_inference(data="今天天气如何？",conversation_id=conversation_id)
-            print("Agent 回复:")
-            for text in result:
-                print(text)
-            print(result)
+            async for chunk in client.agent_inference_stream(data="今天青岛的天气如何？",conversation_id=conversation_id['data']):
+                print("Agent 回复:",chunk)
 
     asyncio.run(main())
+    
+            '''
